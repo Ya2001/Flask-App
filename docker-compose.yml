@@ -1,0 +1,13 @@
+version: '3'
+services:
+  flask_app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - SECRET_KEY=your_secret_key_here
+      - UPLOAD_FOLDER=/app/uploads
+
+

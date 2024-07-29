@@ -1,0 +1,7 @@
+Flask
+pandas
+numpy
+xlsxwriter
+werkzeug==2.0.2
+python-dotenv==0.19.1
+openpyxl
