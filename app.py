@@ -150,10 +150,10 @@ def process_alarm_log(file_path, filename):
         alarm_log['From'] = pd.to_datetime(alarm_log['From'], format='mixed')
         alarm_log['To'] = pd.to_datetime(alarm_log['To'], format='mixed')
         #writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
-        
+
         alarm_log = alarm_log.dropna(subset=['To'])
         alarm_log_sorted = alarm_log.sort_values(by='From')
-        
+
         time_window = pd.Timedelta(minutes=10)
 
         start_time = None
@@ -165,65 +165,60 @@ def process_alarm_log(file_path, filename):
                 if start_time is None:
                         start_time = row['From']
                         end_time = row['To']
-                        selected_error = row
                 else:
                         if row['From'] - start_time <= time_window:
                         # If the error occurs within the time window, extend the end time
                                 end_time = max(end_time, row['To'])
-                        # Update the selected error with the latest end time
-                                selected_error = row
                         else:
                                 # If the error is outside the time window, select the previous error
                                 selected_errors.append(selected_error)
                                 # Start a new time window with the current error
                                 start_time = row['From']
                                 end_time = row['To']
-                                selected_error = row
-
+                selected_error = row
         # Select the last error
         if selected_error is not None:
                 selected_errors.append(selected_error)
-        
+
         base_filename = os.path.splitext(filename)[0]
         filtered_filename = f"{base_filename}_filtered.xlsx"
         excel_path = os.path.join(app.config['UPLOAD_FOLDER'], filtered_filename)
         print(f"Saving processed alarm log to: {excel_path}")
-        
+
         selected_errors_df = pd.DataFrame(selected_errors)
-        
-        
+
+
         with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
                 selected_errors_df.to_excel(writer, index=False, header=True)
-        
+
         selected_errors_df.to_excel(writer, index=False, header=True)
 
         return filtered_filename
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
-        if request.method == 'POST':
-                if 'file' not in request.files:
-                        flash('No file part')
-                        return redirect(request.url)
-                file = request.files['file']
-                if file.filename == '':
-                        flash('No selected file')
-                        return redirect(request.url)
-                if file and allowed_file(file.filename):
-                        filename = secure_filename(file.filename)
-                        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                        print(f"Saving uploaded file to: {save_path}")
-                        file.save(save_path)
-                        if 'raw_data' in filename:
-                                result = process_raw_data(filename)
-                        elif 'alarm_log' in filename:
-                                result = process_alarm_log(filename)
-                        else:
-                                result = 'File uploaded successfully'
-                        return render_template('success.html', message=result)
-                else:
-                        return render_template('error.html', message='Invalid file format')
-        return render_template('index.html')
+        if request.method != 'POST':
+                return render_template('index.html')
+        if 'file' not in request.files:
+                flash('No file part')
+                return redirect(request.url)
+        file = request.files['file']
+        if file.filename == '':
+                flash('No selected file')
+                return redirect(request.url)
+        if not file or not allowed_file(file.filename):
+                return render_template('error.html', message='Invalid file format')
+        filename = secure_filename(file.filename)
+        save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(f"Saving uploaded file to: {save_path}")
+        file.save(save_path)
+        if 'raw_data' in filename:
+                result = process_raw_data(filename)
+        elif 'alarm_log' in filename:
+                result = process_alarm_log(filename)
+        else:
+                result = 'File uploaded successfully'
+        return render_template('success.html', message=result)
 
 @app.route('/upload_raw_data', methods=['POST'])
 def upload_raw_data():
