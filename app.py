@@ -1,4 +1,5 @@
-from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory
+import io
+from flask import Flask, render_template, redirect, url_for, request, flash, send_file, send_from_directory
 import pandas as pd 
 import numpy as np
 import xlsxwriter
@@ -112,14 +113,14 @@ def process_raw_data(file_path, filename):
         
         base_filename = os.path.splitext(filename)[0]
         filtered_filename = f"{base_filename}_filtered.xlsx"
-        excel_path = os.path.join(app.config['UPLOAD_FOLDER'], filtered_filename)
-        print(f"Saving processed raw data to: {excel_path}")
+        # excel_path = os.path.join(app.config['UPLOAD_FOLDER'], filtered_filename)
+        # print(f"Saving processed raw data to: {excel_path}")
         
-        
+        buffer = io.BytesIO()
         # writer = pd.ExcelWriter(excel_path, engine='xlsxwriter')
         # Filter out unknown error types for the "Error Instances" sheet
         
-        with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                 instance_durations_filt = instance_durations[instance_durations['Error Code'] != 0]
                 instance_durations_filt.to_excel(writer, index=False, sheet_name='Error Instances', header=True)
 
@@ -140,7 +141,8 @@ def process_raw_data(file_path, filename):
                         sums_df = duration_sums.reset_index(name='Total Duration')
                         sums_df.to_excel(writer, index=False, sheet_name=f'{turbine_name}_Duration_Sums', header=True)
 
-        return filtered_filename
+        buffer.seek(0)
+        return buffer, filtered_filename
 
 
 
@@ -187,13 +189,14 @@ def process_alarm_log(file_path, filename):
 
         selected_errors_df = pd.DataFrame(selected_errors)
 
-
-        with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                 selected_errors_df.to_excel(writer, index=False, header=True)
 
         selected_errors_df.to_excel(writer, index=False, header=True)
 
-        return filtered_filename
+        buffer.seek(0)
+        return buffer, filtered_filename
 
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
@@ -213,12 +216,13 @@ def upload_file():
         print(f"Saving uploaded file to: {save_path}")
         file.save(save_path)
         if 'raw_data' in filename:
-                result = process_raw_data(filename)
+                buffer, result_filename = process_raw_data(save_path, filename)
         elif 'alarm_log' in filename:
-                result = process_alarm_log(filename)
+                buffer, result_filename = process_alarm_log(save_path, filename)
         else:
-                result = 'File uploaded successfully'
-        return render_template('success.html', message=result)
+                return render_template('error.html', message='Invalid file format')
+
+        return send_file(buffer, as_attachment=True, download_name=result_filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 @app.route('/upload_raw_data', methods=['POST'])
 def upload_raw_data():
@@ -238,10 +242,10 @@ def upload_raw_data():
                 print(f"Saving uploaded raw data file to: {save_path}")
                 file.save(save_path)
                 # Call the processing function after the file is saved
-                result = process_raw_data(save_path, filename)
+                buffer, result_filename = process_raw_data(save_path, filename)
                 
-                # Return a response indicating success
-                return render_template('success.html', message=result)
+                # Return the processed file for download
+                return send_file(buffer, as_attachment=True, download_name=result_filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         else:
                 return render_template('error.html', message='Invalid file format')
 
@@ -264,10 +268,10 @@ def upload_alarm_log():
                 file.save(save_path)
                 
                 # Call the processing function after the file is saved
-                result = process_alarm_log(save_path, filename)
+                buffer, result_filename = process_alarm_log(save_path, filename)
                 
-                # Return a response indicating success
-                return render_template('success.html', message=result)
+                # Return the processed file for download
+                return send_file(buffer, as_attachment=True, download_name=result_filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         else:
                 return render_template('error.html', message='Invalid file format')
 
