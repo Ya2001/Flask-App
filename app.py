@@ -267,7 +267,7 @@ def upload_alarm_log():
                 print(f"Saving uploaded alarm log file to: {save_path}")
                 file.save(save_path)
                 
-                # Call the processing function after the file is saved
+                # Call the processing function after the file is saved  
                 buffer, result_filename = process_alarm_log(save_path, filename)
                 
                 # Return the processed file for download
